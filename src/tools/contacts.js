@@ -1,4 +1,15 @@
-import { osa, escAS } from '../utils/osascript.js';
+import { spawnSync } from 'child_process';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
+const BIN = join(dirname(fileURLToPath(import.meta.url)), '../../scripts/contacts-ek');
+
+function ek(...args) {
+  const r = spawnSync(BIN, args, { encoding: 'utf8', timeout: 30_000 });
+  if (r.error) throw r.error;
+  if (r.status !== 0) throw new Error(r.stderr?.trim() || `contacts-ek exited with code ${r.status}`);
+  return r.stdout.trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+}
 
 export const contactTools = [
   {
@@ -12,54 +23,8 @@ export const contactTools = [
         limit: { type: 'number', description: 'Max results (default 20)' },
       },
     },
-    handler: async ({ query, limit = 20 }) => {
-      const raw = osa(`
-        tell application "Contacts"
-          set q to "${escAS(query)}"
-          set matches to {}
-          set cnt to 0
-          repeat with p in people
-            if cnt >= ${limit} then exit repeat
-            set nm to ""
-            try
-              set nm to (first name of p) & " " & (last name of p)
-            end try
-            if nm contains q then
-              set emails to ""
-              try
-                set emailList to email of p
-                repeat with em in emailList
-                  set emails to emails & (value of em) & ";"
-                end repeat
-              end try
-              set phones to ""
-              try
-                set phoneList to phone of p
-                repeat with ph in phoneList
-                  set phones to phones & (value of ph) & ";"
-                end repeat
-              end try
-              set end of matches to (id of p) & "|" & nm & "|" & emails & "|" & phones
-              set cnt to cnt + 1
-            end if
-          end repeat
-          set out to ""
-          repeat with m in matches
-            set out to out & m & "\n"
-          end repeat
-          return out
-        end tell
-      `);
-      return raw.split('\n').filter(l => l.trim()).map(line => {
-        const [id, name, emails, phones] = line.split('|');
-        return {
-          id: id?.trim(),
-          name: name?.trim(),
-          emails: emails?.split(';').filter(Boolean) ?? [],
-          phones: phones?.split(';').filter(Boolean) ?? [],
-        };
-      });
-    },
+    handler: async ({ query, limit = 20 }) =>
+      ek('search', '--query', query, '--limit', String(limit)),
   },
 
   {
@@ -72,53 +37,6 @@ export const contactTools = [
         id: { type: 'string', description: 'Contact ID from contacts_search' },
       },
     },
-    handler: async ({ id }) => {
-      const raw = osa(`
-        tell application "Contacts"
-          set p to person id "${escAS(id)}"
-          set nm to ""
-          try
-            set nm to (first name of p) & " " & (last name of p)
-          end try
-          set org to ""
-          try
-            set org to organization of p
-          end try
-          set emails to ""
-          try
-            repeat with em in (email of p)
-              set emails to emails & (label of em) & ":" & (value of em) & ";"
-            end repeat
-          end try
-          set phones to ""
-          try
-            repeat with ph in (phone of p)
-              set phones to phones & (label of ph) & ":" & (value of ph) & ";"
-            end repeat
-          end try
-          set addrs to ""
-          try
-            repeat with a in (address of p)
-              set addrs to addrs & (street of a) & ", " & (city of a) & ", " & (zip of a) & ";"
-            end repeat
-          end try
-          set note to ""
-          try
-            set note to note of p
-          end try
-          return nm & "|" & org & "|" & emails & "|" & phones & "|" & addrs & "|" & note
-        end tell
-      `);
-      const [name, org, emails, phones, addresses, notes] = raw.split('|');
-      return {
-        id,
-        name: name?.trim(),
-        organisation: org?.trim(),
-        emails:    emails?.split(';').filter(Boolean).map(e => { const [l,v] = e.split(':'); return {label:l,value:v}; }),
-        phones:    phones?.split(';').filter(Boolean).map(p => { const [l,v] = p.split(':'); return {label:l,value:v}; }),
-        addresses: addresses?.split(';').filter(Boolean),
-        notes:     notes?.trim(),
-      };
-    },
+    handler: async ({ id }) => ek('get', '--id', id)[0],
   },
 ];

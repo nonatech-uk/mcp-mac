@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.nonatech.mac-mcp-ek</string>
+    <key>CFBundleName</key>
+    <string>mac-mcp-ek</string>
+    <key>CFBundleExecutable</key>
+    <string>launcher</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>mac-mcp reads calendar events for the MCP server</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>mac-mcp reads reminders for the MCP server</string>
+    <key>NSContactsUsageDescription</key>
+    <string>mac-mcp reads contacts for the MCP server</string>
+</dict>
+</plist>

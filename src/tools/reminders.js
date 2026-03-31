@@ -1,22 +1,22 @@
-import { osa, parseRecords, escAS, jsDateToAS } from '../utils/osascript.js';
+import { spawnSync } from 'child_process';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
+const BIN = join(dirname(fileURLToPath(import.meta.url)), '../../scripts/reminders-ek');
+
+function ek(...args) {
+  const r = spawnSync(BIN, args, { encoding: 'utf8', timeout: 30_000 });
+  if (r.error) throw r.error;
+  if (r.status !== 0) throw new Error(r.stderr?.trim() || `reminders-ek exited with code ${r.status}`);
+  return r.stdout.trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+}
 
 export const reminderTools = [
   {
     name: 'reminders_list_lists',
-    description: 'List all Reminders lists (names and IDs)',
+    description: 'List all Reminders lists (including those inside folders)',
     inputSchema: { type: 'object', properties: {} },
-    handler: async () => {
-      const raw = osa(`
-        tell application "Reminders"
-          set out to ""
-          repeat with aList in lists
-            set out to out & (name of aList) & "|" & (id of aList) & "\n"
-          end repeat
-          return out
-        end tell
-      `);
-      return parseRecords(raw, ['name', 'id']);
-    },
+    handler: async () => ek('list-lists'),
   },
 
   {
@@ -30,27 +30,10 @@ export const reminderTools = [
       },
     },
     handler: async ({ list_name, include_completed = false }) => {
-      const listFilter = list_name ? `whose name is "${escAS(list_name)}"` : '';
-      const raw = osa(`
-        tell application "Reminders"
-          set out to ""
-          repeat with aList in (lists ${listFilter})
-            set lName to name of aList
-            repeat with r in reminders of aList
-              set done to completed of r
-              if (${include_completed} or not done) then
-                set dueStr to ""
-                try
-                  set dueStr to (due date of r) as string
-                end try
-                set out to out & lName & "|" & (name of r) & "|" & (id of r) & "|" & done & "|" & dueStr & "|" & (body of r) & "\n"
-              end if
-            end repeat
-          end repeat
-          return out
-        end tell
-      `);
-      return parseRecords(raw, ['list', 'title', 'id', 'completed', 'due_date', 'notes']);
+      const args = ['get'];
+      if (list_name) args.push('--list', list_name);
+      if (include_completed) args.push('--include-completed');
+      return ek(...args);
     },
   },
 
@@ -68,25 +51,13 @@ export const reminderTools = [
         priority:  { type: 'number', description: '0=none, 1=high, 5=medium, 9=low' },
       },
     },
-    handler: async ({ title, list_name = 'Reminders', due_date, notes, priority }) => {
-      const dueLine = due_date
-        ? `set due date of newR to date "${jsDateToAS(due_date)}"`
-        : '';
-      const noteLine = notes ? `set body of newR to "${escAS(notes)}"` : '';
-      const priLine  = priority != null ? `set priority of newR to ${priority}` : '';
-
-      const newId = osa(`
-        tell application "Reminders"
-          tell list "${escAS(list_name)}"
-            set newR to make new reminder with properties {name:"${escAS(title)}"}
-            ${dueLine}
-            ${noteLine}
-            ${priLine}
-            return id of newR
-          end tell
-        end tell
-      `);
-      return { id: newId, title, list_name };
+    handler: async ({ title, list_name, due_date, notes, priority }) => {
+      const args = ['create', '--title', title];
+      if (list_name) args.push('--list', list_name);
+      if (due_date)  args.push('--due', due_date);
+      if (notes)     args.push('--notes', notes);
+      if (priority != null) args.push('--priority', String(priority));
+      return ek(...args)[0];
     },
   },
 
@@ -100,15 +71,7 @@ export const reminderTools = [
         id: { type: 'string', description: 'Reminder ID (from reminders_get)' },
       },
     },
-    handler: async ({ id }) => {
-      osa(`
-        tell application "Reminders"
-          set r to reminder id "${escAS(id)}"
-          set completed of r to true
-        end tell
-      `);
-      return { ok: true, id };
-    },
+    handler: async ({ id }) => ek('complete', '--id', id)[0],
   },
 
   {
@@ -121,13 +84,6 @@ export const reminderTools = [
         id: { type: 'string', description: 'Reminder ID (from reminders_get)' },
       },
     },
-    handler: async ({ id }) => {
-      osa(`
-        tell application "Reminders"
-          delete (reminder id "${escAS(id)}")
-        end tell
-      `);
-      return { ok: true, id };
-    },
+    handler: async ({ id }) => ek('delete', '--id', id)[0],
   },
 ];

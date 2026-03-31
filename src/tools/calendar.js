@@ -1,22 +1,24 @@
-import { osa, parseRecords, escAS, jsDateToAS } from '../utils/osascript.js';
+import { spawnSync } from 'child_process';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
+const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), '../../scripts');
+const BIN = join(SCRIPTS, 'calendar-ek');
+const LAUNCHER = join(SCRIPTS, 'mac-mcp-ek.app/Contents/MacOS/launcher');
+
+function ek(...args) {
+  const r = spawnSync(LAUNCHER, ['calendar-ek', ...args], { encoding: 'utf8', timeout: 30_000 });
+  if (r.error) throw r.error;
+  if (r.status !== 0) throw new Error(r.stderr?.trim() || `calendar-ek exited with code ${r.status}`);
+  return r.stdout.trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+}
 
 export const calendarTools = [
   {
     name: 'calendar_list_calendars',
     description: 'List all calendars with name, ID and type',
     inputSchema: { type: 'object', properties: {} },
-    handler: async () => {
-      const raw = osa(`
-        tell application "Calendar"
-          set out to ""
-          repeat with c in calendars
-            set out to out & (name of c) & "|" & (id of c) & "\n"
-          end repeat
-          return out
-        end tell
-      `);
-      return parseRecords(raw, ['name', 'id']);
-    },
+    handler: async () => ek('list-calendars'),
   },
 
   {
@@ -32,27 +34,9 @@ export const calendarTools = [
       },
     },
     handler: async ({ start_date, end_date, calendar_name }) => {
-      const calFilter = calendar_name ? `whose name is "${escAS(calendar_name)}"` : '';
-      const raw = osa(`
-        tell application "Calendar"
-          set startD to date "${jsDateToAS(start_date)}"
-          set endD to date "${jsDateToAS(end_date)}"
-          set out to ""
-          repeat with c in (calendars ${calFilter})
-            set cName to name of c
-            set evts to (every event of c whose start date >= startD and start date <= endD)
-            repeat with e in evts
-              set locStr to ""
-              try
-                set locStr to location of e
-              end try
-              set out to out & (summary of e) & "|" & (start date of e) & "|" & (end date of e) & "|" & (id of e) & "|" & cName & "|" & locStr & "\n"
-            end repeat
-          end repeat
-          return out
-        end tell
-      `);
-      return parseRecords(raw, ['title', 'start', 'end', 'id', 'calendar', 'location']);
+      const args = ['get-events', '--start', start_date, '--end', end_date];
+      if (calendar_name) args.push('--calendar', calendar_name);
+      return ek(...args);
     },
   },
 
@@ -66,32 +50,19 @@ export const calendarTools = [
         title:         { type: 'string', description: 'Event title / summary' },
         start_date:    { type: 'string', description: 'ISO 8601 start datetime' },
         end_date:      { type: 'string', description: 'ISO 8601 end datetime' },
-        calendar_name: { type: 'string', description: 'Calendar to add to (default: first calendar)' },
+        calendar_name: { type: 'string', description: 'Calendar to add to (default: first writable calendar)' },
         location:      { type: 'string' },
         notes:         { type: 'string' },
         all_day:       { type: 'boolean', description: 'All-day event?' },
       },
     },
     handler: async ({ title, start_date, end_date, calendar_name, location, notes, all_day }) => {
-      const calClause = calendar_name
-        ? `tell calendar "${escAS(calendar_name)}"`
-        : 'tell calendar 1';
-      const locLine  = location ? `set location of newE to "${escAS(location)}"` : '';
-      const noteLine = notes    ? `set description of newE to "${escAS(notes)}"` : '';
-      const allDay   = all_day  ? 'set allday event of newE to true' : '';
-
-      const newId = osa(`
-        tell application "Calendar"
-          ${calClause}
-            set newE to make new event with properties {summary:"${escAS(title)}", start date:date "${jsDateToAS(start_date)}", end date:date "${jsDateToAS(end_date)}"}
-            ${locLine}
-            ${noteLine}
-            ${allDay}
-            return id of newE
-          end tell
-        end tell
-      `);
-      return { id: newId, title };
+      const args = ['create-event', '--title', title, '--start', start_date, '--end', end_date];
+      if (calendar_name) args.push('--calendar', calendar_name);
+      if (location)      args.push('--location', location);
+      if (notes)         args.push('--notes', notes);
+      if (all_day)       args.push('--all-day');
+      return ek(...args)[0];
     },
   },
 
@@ -111,21 +82,13 @@ export const calendarTools = [
       },
     },
     handler: async ({ id, title, start_date, end_date, location, notes }) => {
-      const lines = [
-        title      && `set summary of e to "${escAS(title)}"`,
-        start_date && `set start date of e to date "${jsDateToAS(start_date)}"`,
-        end_date   && `set end date of e to date "${jsDateToAS(end_date)}"`,
-        location   && `set location of e to "${escAS(location)}"`,
-        notes      && `set description of e to "${escAS(notes)}"`,
-      ].filter(Boolean).join('\n            ');
-
-      osa(`
-        tell application "Calendar"
-          set e to event id "${escAS(id)}"
-          ${lines}
-        end tell
-      `);
-      return { ok: true, id };
+      const args = ['update-event', '--id', id];
+      if (title)      args.push('--title', title);
+      if (start_date) args.push('--start', start_date);
+      if (end_date)   args.push('--end', end_date);
+      if (location)   args.push('--location', location);
+      if (notes)      args.push('--notes', notes);
+      return ek(...args)[0];
     },
   },
 
@@ -139,19 +102,12 @@ export const calendarTools = [
         id: { type: 'string' },
       },
     },
-    handler: async ({ id }) => {
-      osa(`
-        tell application "Calendar"
-          delete (event id "${escAS(id)}")
-        end tell
-      `);
-      return { ok: true, id };
-    },
+    handler: async ({ id }) => ek('delete-event', '--id', id)[0],
   },
 
   {
     name: 'calendar_get_availability',
-    description: 'Return free/busy slots within a time range (across all calendars)',
+    description: 'Return busy slots within a time range (across all calendars)',
     inputSchema: {
       type: 'object',
       required: ['start_date', 'end_date'],
@@ -161,22 +117,7 @@ export const calendarTools = [
       },
     },
     handler: async ({ start_date, end_date }) => {
-      // Reuse get_events across all calendars, then let the caller reason about gaps
-      const raw = osa(`
-        tell application "Calendar"
-          set startD to date "${jsDateToAS(start_date)}"
-          set endD to date "${jsDateToAS(end_date)}"
-          set out to ""
-          repeat with c in calendars
-            set evts to (every event of c whose start date >= startD and start date <= endD)
-            repeat with e in evts
-              set out to out & (summary of e) & "|" & (start date of e) & "|" & (end date of e) & "\n"
-            end repeat
-          end repeat
-          return out
-        end tell
-      `);
-      const busy = parseRecords(raw, ['title', 'start', 'end']);
+      const busy = ek('get-events', '--start', start_date, '--end', end_date);
       return {
         query: { start: start_date, end: end_date },
         busy_slots: busy,
