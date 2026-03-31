@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent for mac-mcp on Mac Studio.
+  Install:
+    cp launchd/com.nonatech.mac-mcp.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.nonatech.mac-mcp.plist
+
+  Logs:
+    tail -f /tmp/mac-mcp.log
+    tail -f /tmp/mac-mcp-error.log
+
+  Reload after config changes:
+    launchctl unload ~/Library/LaunchAgents/com.nonatech.mac-mcp.plist
+    launchctl load   ~/Library/LaunchAgents/com.nonatech.mac-mcp.plist
+-->
+<plist version="1.0">
+<dict>
+
+  <key>Label</key>
+  <string>com.nonatech.mac-mcp</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <!-- Adjust path to wherever you installed node via Homebrew / nvm -->
+    <string>/opt/homebrew/bin/node</string>
+    <string>/Users/stu/Code/mac-mcp/src/index.js</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/stu/Code/mac-mcp</string>
+
+  <!-- Start at login and keep alive on crash -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- 5-second restart throttle to avoid spin loops on hard errors -->
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/mac-mcp.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/tmp/mac-mcp-error.log</string>
+
+  <!-- Inherit user PATH so `open`, `pbcopy`, etc. resolve correctly -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>/Users/stu</string>
+  </dict>
+
+</dict>
+</plist>

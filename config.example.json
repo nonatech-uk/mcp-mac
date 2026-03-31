@@ -1,0 +1,54 @@
+{
+  "hostname": "mac-studio",
+  "priority": 10,
+  "port": 3456,
+  "wireguard_ip": "10.10.0.3",
+
+  "_comment_priority": "Studio=10, Notebook=5. Gateway routes to highest reachable.",
+
+  "api_key": "YOUR_SHARED_SECRET",
+  "_comment_api_key": "Bearer token the gateway must present. Also settable via MCP_API_KEY env var.",
+
+  "tls": {
+    "cert": "/etc/mcp-host-tools/tls/server.crt",
+    "key":  "/etc/mcp-host-tools/tls/server.key",
+    "_comment": "Omit or leave empty to run plain HTTP. Also settable via SSL_CERTFILE / SSL_KEYFILE env vars."
+  },
+
+  "shell": {
+    "enabled": true,
+    "allowlist": [
+      "df", "du", "ls", "find", "grep", "cat", "head", "tail",
+      "ps", "top", "vm_stat", "uptime", "sw_vers", "system_profiler",
+      "networksetup", "ifconfig", "ping", "traceroute",
+      "brew", "npm", "node", "python3",
+      "git", "gh",
+      "open", "say",
+      "ffmpeg", "ffprobe",
+      "rsync", "scp",
+      "pmset", "caffeinate"
+    ]
+  },
+
+  "messages": {
+    "send_enabled": false,
+    "_comment": "Set true to allow Claude to send iMessages. Confirm you want this before enabling."
+  },
+
+  "spotify": {
+    "enabled": true,
+    "client_id": "YOUR_SPOTIFY_CLIENT_ID",
+    "client_secret": "YOUR_SPOTIFY_CLIENT_SECRET",
+    "refresh_token": "YOUR_SPOTIFY_REFRESH_TOKEN",
+    "default_device_name": "Mac Studio",
+    "_comment": "Get tokens via: node scripts/spotify_auth.js"
+  },
+
+  "plex": {
+    "enabled": true,
+    "server_url": "http://YOUR_NAS_IP:32400",
+    "token": "YOUR_PLEX_TOKEN",
+    "default_client_name": "Mac Studio",
+    "_comment": "Token: sign in at plex.tv, inspect network, look for X-Plex-Token in any request"
+  }
+}

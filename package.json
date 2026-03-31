@@ -1,0 +1,20 @@
+{
+  "name": "mac-mcp",
+  "version": "1.0.0",
+  "description": "NonaTech Mac MCP Server — Apple data + local facilities over WireGuard",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "express": "^4.18.2",
+    "better-sqlite3": "^12.8.0",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
