@@ -3,10 +3,85 @@
 Apple data and local Mac facilities exposed as an MCP server over WireGuard,
 consumed by the NAS gateway at `query.mees.st`.
 
-## Installed tools (common to both Macs)
+## Quick start (new Mac)
+
+```bash
+# 1. Clone and install
+cd ~/Code
+git clone <repo-url> mac-mcp
+cd mac-mcp
+brew install node          # Node >= 20
+npm install
+
+# 2. Build the EventKit binaries
+scripts/build-ek.sh
+
+# 3. Grant macOS privacy permissions (see section below)
+
+# 4. Configure
+cp config.example.json config.json
+# Edit config.json — hostname, priority, WG IP, api_key, Spotify/Plex creds
+
+# 5. Run
+npm start                  # foreground
+npm run dev                # foreground with auto-reload
+```
+
+## Building the EventKit binaries
+
+Calendar, Contacts, and Reminders use native Swift binaries that talk to
+EventKit directly (replacing the old AppleScript approach). These must be
+compiled on the target Mac:
+
+```bash
+scripts/build-ek.sh
+```
+
+This compiles three binaries into `scripts/`:
+
+| Binary          | Swift source             | Used by         |
+|-----------------|--------------------------|-----------------|
+| `calendar-ek`   | `scripts/calendar-ek.swift`  | Calendar tools  |
+| `contacts-ek`   | `scripts/contacts-ek.swift`  | Contacts tools  |
+| `reminders-ek`  | `scripts/reminders-ek.swift` | Reminders tools |
+
+The binaries are not checked into git — they must be built per-machine since
+macOS TCC (privacy) permissions are tied to code signatures.
+
+## Privacy permissions (System Settings > Privacy & Security)
+
+The EventKit binaries need macOS permission grants. The easiest way is to
+**run each binary once from your terminal** — macOS will show a permission
+dialog for each:
+
+```bash
+scripts/calendar-ek  list-calendars      # triggers Calendars permission
+scripts/reminders-ek list-lists           # triggers Reminders permission
+scripts/contacts-ek  search --query test  # triggers Contacts permission
+```
+
+Approve each dialog. The permission is then inherited when the node server
+spawns these binaries, **provided the server runs under the same user**.
+
+If running via launchd, you may need to grant permissions to the **node
+binary** itself. Check System Settings > Privacy & Security > Calendars /
+Reminders / Contacts and add `/opt/homebrew/bin/node` (or wherever node is).
+
+### Full permission list
+
+| Permission          | Required for |
+|---------------------|--------------|
+| Calendars           | Calendar tools |
+| Reminders           | Reminders tools |
+| Contacts            | Contacts tools |
+| Full Disk Access    | Messages (reads ~/Library/Messages/chat.db) |
+| Automation > Messages | messages_send (if enabled) |
+| Automation > Safari | browser_* tools |
+
+## Installed tools
 
 | Module       | Tools |
-|---|---|
+|--------------|-------|
 | Reminders    | list_lists, get, create, complete, delete |
 | Calendar     | list_calendars, get_events, create_event, update_event, delete_event, get_availability |
 | Contacts     | search, get |
@@ -20,20 +95,21 @@ consumed by the NAS gateway at `query.mees.st`.
 | Plex         | libraries, search, get_sessions, get_clients |
 | Browser      | get_current_tab, get_tabs, open_url, get_page_text |
 
-## Prerequisites
-
-```bash
-brew install node          # Node ≥ 20
-cd ~/Code/mac-mcp
-npm install
-```
-
-## Setup
+## Config
 
 ```bash
 cp config.example.json config.json
-# Edit config.json — hostname, priority, WG IP, Spotify/Plex credentials
 ```
+
+Key fields:
+
+| Field | Purpose |
+|-------|---------|
+| `hostname` | Identifies this Mac to the gateway (e.g. `mac-studio`, `mac-notebook`) |
+| `priority` | Gateway routes to the highest-priority reachable host (Studio=10, Notebook=5) |
+| `port` | HTTP listen port (default 3456) |
+| `wireguard_ip` | Bind address — only WG peers can reach the server |
+| `api_key` | Bearer token the gateway must present |
 
 ### Spotify OAuth (one-time)
 
@@ -45,38 +121,30 @@ cp config.example.json config.json
 
 ### Plex token
 
-Sign in at plex.tv, open DevTools → Network, filter for requests to your server,
-look for `X-Plex-Token` in any request's query string.
-
-## Privacy permissions required (System Settings → Privacy & Security)
-
-| Permission          | Required for |
-|---|---|
-| Reminders           | Reminders tools |
-| Calendars           | Calendar tools |
-| Contacts            | Contacts tools |
-| Full Disk Access    | Messages (reads chat.db) |
-| Automation → Messages | messages_send (if enabled) |
-| Automation → Safari | browser_* tools |
-
-Grant these to **Terminal** (or whichever terminal you use to launch the server)
-and they'll be inherited by the node process. After installing the launchd agent
-you may need to grant them to the node binary itself.
+Sign in at plex.tv, open DevTools > Network, filter for requests to your
+server, look for `X-Plex-Token` in any request's query string.
 
 ## Install as launchd service
 
 ```bash
-# Studio
+# Copy and edit the plist — update paths for your username and node location
 cp launchd/com.nonatech.mac-mcp.plist ~/Library/LaunchAgents/
+
+# Edit ~/Library/LaunchAgents/com.nonatech.mac-mcp.plist:
+#   - ProgramArguments: path to node and src/index.js
+#   - WorkingDirectory: path to mac-mcp
+#   - HOME env var: your home directory
+
 launchctl load ~/Library/LaunchAgents/com.nonatech.mac-mcp.plist
 
 # Logs
 tail -f /tmp/mac-mcp.log
 tail -f /tmp/mac-mcp-error.log
-```
 
-For the Notebook: copy the project, set `"hostname": "mac-notebook"` and
-`"priority": 5` in config.json (Studio is 10).
+# Reload after changes
+launchctl unload ~/Library/LaunchAgents/com.nonatech.mac-mcp.plist
+launchctl load   ~/Library/LaunchAgents/com.nonatech.mac-mcp.plist
+```
 
 ## WireGuard addressing
 
@@ -87,48 +155,50 @@ mac-notebook.wg = 10.10.0.4
 ```
 
 Update the `wireguard_ip` in each config.json accordingly.
-The server binds to that address so only WireGuard-connected peers can reach it.
 
 ## Gateway integration
 
-Add both Macs as upstream MCP endpoints in the NAS gateway config:
+Add each Mac as an upstream MCP endpoint in the NAS gateway config:
 
 ```yaml
 upstreams:
   - name: mac-studio
-    url:  http://10.10.0.3:3456/sse
+    url:  http://10.10.0.3:3456/mcp
     health_url: http://10.10.0.3:3456/health
-    priority_field: priority       # parsed from health response
+    priority_field: priority
     poll_interval_s: 30
 
   - name: mac-notebook
-    url:  http://10.10.0.4:3456/sse
+    url:  http://10.10.0.4:3456/mcp
     health_url: http://10.10.0.4:3456/health
     priority_field: priority
     poll_interval_s: 30
 ```
 
-The gateway should route all Apple/mac tool calls to the highest-priority
-reachable host. Both expose identical tool names; the gateway's routing layer
-picks the winner. When only one is up it falls through automatically.
+The gateway routes all Apple/Mac tool calls to the highest-priority reachable
+host. Both expose identical tool names; when only one is up it falls through
+automatically.
 
-## Cross-device clipboard sharing
+## Troubleshooting
 
-Since both Macs expose `clipboard_get` and `clipboard_set`, Claude can broker
-clipboard content across any gateway-connected device:
+### EventKit binaries return "Calendar access denied"
 
-```
-"Push Studio clipboard to my notebook"
-→ clipboard_get (mac-studio) → clipboard_set (mac-notebook)
+TCC permissions are tied to code signatures. After recompiling, the old
+permission grant is invalidated. Fix:
 
-"Share this to all Macs"
-→ clipboard_set (mac-studio) + clipboard_set (mac-notebook)
-```
+1. Delete the stale TCC entry:
+   ```bash
+   tccutil reset Calendar   # or Reminders, or Contacts
+   ```
+2. Re-run the binary from Terminal to trigger a fresh permission dialog:
+   ```bash
+   scripts/calendar-ek list-calendars
+   ```
+3. Approve the dialog.
 
-## PIF / Spotify integration idea
+### launchd service can't access Calendar/Reminders/Contacts
 
-Your scrobble DB has 48k+ plays. A PIF query for top tracks this month returns
-Spotify URIs → feed them as `seed_track_uris` to `spotify_get_recommendations`
-→ pipe the result into `spotify_create_playlist` → `spotify_play` with the
-playlist URI. Full end-to-end contextual playlist generation from listening
-history without touching the Spotify UI.
+The launchd agent runs under your user but may not inherit Terminal's TCC
+grants. Go to System Settings > Privacy & Security and add the **node
+binary** (e.g. `/opt/homebrew/bin/node`) to Calendars, Reminders, and
+Contacts.
