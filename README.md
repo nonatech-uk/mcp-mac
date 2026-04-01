@@ -1,4 +1,4 @@
-# mac-mcp — NonaTech Mac MCP Server
+# mcp-mac — NonaTech Mac MCP Server
 
 Apple data and local Mac facilities exposed as an MCP server over WireGuard,
 consumed by the NAS gateway at `query.mees.st`.
@@ -8,8 +8,8 @@ consumed by the NAS gateway at `query.mees.st`.
 ```bash
 # 1. Clone and install
 cd ~/Code
-git clone <repo-url> mac-mcp
-cd mac-mcp
+git clone git@github.com:nonatech-uk/mcp-mac.git
+cd mcp-mac
 brew install node          # Node >= 20
 npm install
 
@@ -22,9 +22,12 @@ scripts/build-ek.sh
 cp config.example.json config.json
 # Edit config.json — hostname, priority, WG IP, api_key, Spotify/Plex creds
 
-# 5. Run
+# 5. Run (development)
 npm start                  # foreground
 npm run dev                # foreground with auto-reload
+
+# 6. Deploy to /opt (production)
+scripts/deploy.sh
 ```
 
 ## Building the EventKit binaries
@@ -124,26 +127,39 @@ Key fields:
 Sign in at plex.tv, open DevTools > Network, filter for requests to your
 server, look for `X-Plex-Token` in any request's query string.
 
-## Install as launchd service
+## Deployment
+
+Development lives in `~/Code/mcp-mac`. Production runs from `/opt/mcp-mac`.
 
 ```bash
-# Copy and edit the plist — update paths for your username and node location
-cp launchd/com.nonatech.mac-mcp.plist ~/Library/LaunchAgents/
+# First-time setup — create the production directory
+sudo mkdir -p /opt/mcp-mac && sudo chown $USER:staff /opt/mcp-mac
 
-# Edit ~/Library/LaunchAgents/com.nonatech.mac-mcp.plist:
-#   - ProgramArguments: path to node and src/index.js
-#   - WorkingDirectory: path to mac-mcp
-#   - HOME env var: your home directory
+# Deploy (syncs files, installs deps, restarts service)
+scripts/deploy.sh
+```
 
-launchctl load ~/Library/LaunchAgents/com.nonatech.mac-mcp.plist
+The deploy script handles:
+- rsync from dev to `/opt/mcp-mac` (excludes `.git`, `node_modules`, `.claude`, `plan`)
+- `npm install --production`
+- Copies the launchd plist to `~/Library/LaunchAgents/`
+- Restarts the service via `launchctl`
 
-# Logs
-tail -f /tmp/mac-mcp.log
-tail -f /tmp/mac-mcp-error.log
+### Logs
 
-# Reload after changes
-launchctl unload ~/Library/LaunchAgents/com.nonatech.mac-mcp.plist
-launchctl load   ~/Library/LaunchAgents/com.nonatech.mac-mcp.plist
+```bash
+tail -f /opt/mcp-mac/logs/mcp-mac.log
+tail -f /opt/mcp-mac/logs/mcp-mac-error.log
+```
+
+### Manual service control
+
+```bash
+# Stop
+launchctl bootout gui/$(id -u)/com.nonatech.mac-mcp
+
+# Start
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.nonatech.mac-mcp.plist
 ```
 
 ## WireGuard addressing

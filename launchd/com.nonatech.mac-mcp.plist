@@ -24,11 +24,11 @@
   <array>
     <!-- Adjust path to wherever you installed node via Homebrew / nvm -->
     <string>/opt/homebrew/bin/node</string>
-    <string>/Users/stu/Code/mac-mcp/src/index.js</string>
+    <string>/opt/mcp-mac/src/index.js</string>
   </array>
 
   <key>WorkingDirectory</key>
-  <string>/Users/stu/Code/mac-mcp</string>
+  <string>/opt/mcp-mac</string>
 
   <!-- Start at login and keep alive on crash -->
   <key>RunAtLoad</key>
@@ -41,10 +41,10 @@
   <integer>5</integer>
 
   <key>StandardOutPath</key>
-  <string>/tmp/mac-mcp.log</string>
+  <string>/opt/mcp-mac/logs/mcp-mac.log</string>
 
   <key>StandardErrorPath</key>
-  <string>/tmp/mac-mcp-error.log</string>
+  <string>/opt/mcp-mac/logs/mcp-mac-error.log</string>
 
   <!-- Inherit user PATH so `open`, `pbcopy`, etc. resolve correctly -->
   <key>EnvironmentVariables</key>
