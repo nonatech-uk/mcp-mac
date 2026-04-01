@@ -9,6 +9,8 @@
  *   GET/POST /mcp  → MCP StreamableHTTP transport (gateway connects here)
  */
 
+import https from 'node:https';
+import { readFileSync } from 'node:fs';
 import express from 'express';
 import { Server }           from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -136,14 +138,27 @@ app.all('/mcp', async (req, res) => {
 
 const LISTEN_ADDR = config.wireguard_ip || '127.0.0.1';
 
-app.listen(config.port, LISTEN_ADDR, () => {
+function onListening(protocol) {
   console.log(`mac-mcp [${config.hostname}] priority=${config.priority}`);
-  console.log(`Listening on http://${LISTEN_ADDR}:${config.port}`);
+  console.log(`Listening on ${protocol}://${LISTEN_ADDR}:${config.port}`);
   console.log(`Tools registered: ${ALL_TOOLS.length}`);
   if (config.api_key) console.log('API key auth enabled');
   console.log('Health: GET /health');
   console.log('MCP:    /mcp');
-});
+}
+
+if (config.tls.cert && config.tls.key) {
+  const tlsOpts = {
+    cert: readFileSync(config.tls.cert),
+    key:  readFileSync(config.tls.key),
+  };
+  https.createServer(tlsOpts, app).listen(config.port, LISTEN_ADDR, () => onListening('https'));
+} else {
+  app.listen(config.port, LISTEN_ADDR, () => {
+    onListening('http');
+    console.warn('WARNING: TLS not configured — running plain HTTP');
+  });
+}
 
 // Graceful shutdown
 process.on('SIGTERM', () => { console.log('SIGTERM received, shutting down'); process.exit(0); });

@@ -15,6 +15,8 @@ rsync -a --delete \
   --exclude='.claude' \
   --exclude='plan' \
   --exclude='node_modules' \
+  --exclude='tls' \
+  --exclude='config.json' \
   "$SRC/" "$DEST/"
 
 echo "==> Installing dependencies..."

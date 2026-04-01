@@ -10,9 +10,9 @@
   "_comment_api_key": "Bearer token the gateway must present. Also settable via MCP_API_KEY env var.",
 
   "tls": {
-    "cert": "/etc/mcp-host-tools/tls/server.crt",
-    "key":  "/etc/mcp-host-tools/tls/server.key",
-    "_comment": "Omit or leave empty to run plain HTTP. Also settable via SSL_CERTFILE / SSL_KEYFILE env vars."
+    "cert": "/opt/mcp-mac/tls/mac-studio.crt",
+    "key":  "/opt/mcp-mac/tls/mac-studio.key",
+    "_comment": "Omit or leave empty to run plain HTTP. Generate with: scripts/gen-certs.sh"
   },
 
   "shell": {
