@@ -94,7 +94,7 @@ store.requestFullAccessToReminders { granted, _ in
 
     case "create":
         var title    = ""
-        var listName = "Reminders"
+        var listName = "Inbox"
         var dueISO:  String? = nil
         var notes:   String? = nil
         var priority = 0

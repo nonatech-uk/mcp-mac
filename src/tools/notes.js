@@ -83,6 +83,26 @@ export const noteTools = [
   },
 
   {
+    name: 'notes_delete',
+    description: 'Delete an Apple Note by ID',
+    inputSchema: {
+      type: 'object',
+      required: ['id'],
+      properties: {
+        id: { type: 'string', description: 'Note ID (from notes_list / notes_search / notes_create)' },
+      },
+    },
+    handler: async ({ id }) => {
+      osa(`
+        tell application "Notes"
+          delete note id "${escAS(id)}"
+        end tell
+      `);
+      return { ok: true, id };
+    },
+  },
+
+  {
     name: 'notes_search',
     description: 'Search Apple Notes by keyword in title or body',
     inputSchema: {

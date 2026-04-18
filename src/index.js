@@ -33,6 +33,8 @@ import { browserTools }      from './tools/browser.js';
 
 // ─── Aggregate all tools ─────────────────────────────────────────────────────
 
+const HOST_PREFIX = config.hostname.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
 const ALL_TOOLS = [
   ...reminderTools,
   ...calendarTools,
@@ -45,7 +47,7 @@ const ALL_TOOLS = [
   ...systemTools,
   ...musicTools,
   ...browserTools,
-];
+].map(t => ({ ...t, name: `${HOST_PREFIX}_${t.name}` }));
 
 const TOOL_MAP = new Map(ALL_TOOLS.map(t => [t.name, t]));
 

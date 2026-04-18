@@ -92,22 +92,26 @@ export const systemTools = [
       },
     },
     handler: async ({ filter, limit = 30 }) => {
-      const r = spawnSync('ps', ['-eo', 'pid,pcpu,pmem,comm', '--sort=-pcpu'], {
+      const r = spawnSync('ps', ['-Axo', 'pid,pcpu,pmem,comm'], {
         encoding: 'utf8', timeout: 10_000,
       });
-      const lines = r.stdout?.trim().split('\n').slice(1) ?? [];
+      if (r.status !== 0) throw new Error(r.stderr?.trim() || `ps exited with code ${r.status}`);
+      const lines = r.stdout.trim().split('\n').slice(1);
       const filtered = filter
         ? lines.filter(l => l.toLowerCase().includes(filter.toLowerCase()))
         : lines;
-      return filtered.slice(0, limit).map(line => {
-        const parts = line.trim().split(/\s+/);
-        return {
-          pid:  parts[0],
-          cpu:  parts[1],
-          mem:  parts[2],
-          name: parts.slice(3).join(' '),
-        };
-      });
+      return filtered
+        .map(line => {
+          const parts = line.trim().split(/\s+/);
+          return {
+            pid:  parts[0],
+            cpu:  parts[1],
+            mem:  parts[2],
+            name: parts.slice(3).join(' '),
+          };
+        })
+        .sort((a, b) => parseFloat(b.cpu) - parseFloat(a.cpu))
+        .slice(0, limit);
     },
   },
 ];

@@ -14,7 +14,7 @@ case "${1:-}" in
   ca)
     mkdir -p "$TLS_DIR"
     openssl ecparam -genkey -name prime256v1 -out "$TLS_DIR/ca.key" 2>/dev/null
-    openssl req -new -x509 -days 3650 -key "$TLS_DIR/ca.key" \
+    openssl req -new -x509 -days 3650 -sha256 -key "$TLS_DIR/ca.key" \
       -subj "/CN=mcp-mac Internal CA" -out "$TLS_DIR/ca.crt"
     chmod 600 "$TLS_DIR/ca.key"
     echo "CA created:"
@@ -37,7 +37,7 @@ case "${1:-}" in
     openssl req -new -key "$TLS_DIR/$HOST.key" \
       -subj "/CN=$HOST" -out "$TLS_DIR/$HOST.csr"
 
-    openssl x509 -req -days 3650 -in "$TLS_DIR/$HOST.csr" \
+    openssl x509 -req -days 3650 -sha256 -in "$TLS_DIR/$HOST.csr" \
       -CA "$TLS_DIR/ca.crt" -CAkey "$TLS_DIR/ca.key" -CAcreateserial \
       -extfile <(printf "subjectAltName=DNS:%s,IP:%s" "$HOST" "$WG_IP") \
       -out "$TLS_DIR/$HOST.crt" 2>/dev/null

@@ -94,7 +94,7 @@ Reminders / Contacts and add `/opt/homebrew/bin/node` (or wherever node is).
 | Clipboard    | get, set |
 | Notifications| notify |
 | System       | status, processes |
-| Spotify      | status, search, play, pause, skip, queue, get_devices, get_recommendations, create_playlist |
+| Spotify      | status, search, play, pause, skip, queue, get_devices, create_playlist |
 | Plex         | libraries, search, get_sessions, get_clients |
 | Browser      | get_current_tab, get_tabs, open_url, get_page_text |
 

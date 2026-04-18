@@ -24,20 +24,26 @@ let spotifyAccessToken = null;
 let spotifyTokenExpiry  = 0;
 
 async function spotifyRefreshToken() {
-  const { client_id, client_secret, refresh_token } = config.spotify;
-  const resp = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': 'Basic ' + Buffer.from(`${client_id}:${client_secret}`).toString('base64'),
-    },
-    body: new URLSearchParams({
-      grant_type:    'refresh_token',
-      refresh_token,
-    }),
-  });
-  if (!resp.ok) throw new Error(`Spotify token refresh failed: ${resp.status}`);
-  const data = await resp.json();
+  const { token_proxy_url, client_id, client_secret, refresh_token } = config.spotify;
+
+  let data;
+  if (token_proxy_url) {
+    const resp = await fetch(token_proxy_url);
+    if (!resp.ok) throw new Error(`Spotify token proxy ${token_proxy_url} → ${resp.status}`);
+    data = await resp.json();
+  } else {
+    const resp = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic ' + Buffer.from(`${client_id}:${client_secret}`).toString('base64'),
+      },
+      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token }),
+    });
+    if (!resp.ok) throw new Error(`Spotify token refresh failed: ${resp.status}`);
+    data = await resp.json();
+  }
+
   spotifyAccessToken = data.access_token;
   spotifyTokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
 }
@@ -55,11 +61,13 @@ async function spotify(path, method = 'GET', body) {
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  if (resp.status === 204) return null;
   if (!resp.ok) {
     const err = await resp.text();
     throw new Error(`Spotify API ${method} ${path} → ${resp.status}: ${err}`);
   }
+  if (resp.status === 204) return null;
+  const ct = resp.headers.get('content-type') ?? '';
+  if (!ct.includes('application/json')) return null;
   return resp.json();
 }
 
@@ -156,7 +164,9 @@ export const musicTools = [
     handler: async ({ uri, uris, device_id, offset_ms }) => {
       const devId = device_id ?? await getDefaultDeviceId();
       const body = {};
-      if (uri)   body.context_uri = uri;
+      // Spotify: track URIs go in `uris` array, album/playlist/artist URIs go in `context_uri`
+      if (uri && uri.startsWith('spotify:track:')) body.uris = [uri];
+      else if (uri) body.context_uri = uri;
       if (uris)  body.uris = uris;
       if (offset_ms) body.position_ms = offset_ms;
       await spotify(`/me/player/play${devId ? `?device_id=${devId}` : ''}`, 'PUT', body);
@@ -203,59 +213,6 @@ export const musicTools = [
       return data?.devices?.map(d => ({
         id: d.id, name: d.name, type: d.type, active: d.is_active, volume: d.volume_percent,
       })) ?? [];
-    },
-  },
-
-  {
-    name: 'spotify_get_recommendations',
-    description: 'Get Spotify track recommendations. Seed with track URIs (e.g. from PIF scrobble data), artist names, or genre names.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        seed_track_uris:   { type: 'array', items: { type: 'string' }, description: 'Up to 5 Spotify track URIs' },
-        seed_artist_names: { type: 'array', items: { type: 'string' }, description: 'Up to 5 artist names (will be resolved)' },
-        seed_genres:       { type: 'array', items: { type: 'string' }, description: 'Genre strings e.g. ["prog-rock","jazz"]' },
-        limit:             { type: 'number', description: 'Number of recommendations (default 20, max 100)' },
-        target_energy:     { type: 'number', description: '0.0–1.0 energy target' },
-        target_valence:    { type: 'number', description: '0.0–1.0 mood (0=dark, 1=happy)' },
-        target_tempo:      { type: 'number', description: 'BPM target' },
-      },
-    },
-    handler: async ({ seed_track_uris = [], seed_artist_names = [], seed_genres = [], limit = 20, target_energy, target_valence, target_tempo }) => {
-      // Resolve artist names to IDs
-      const artistIds = await Promise.all(seed_artist_names.slice(0,5).map(async name => {
-        const r = await spotify(`/search?q=${encodeURIComponent(name)}&type=artist&limit=1`);
-        return r?.artists?.items?.[0]?.id;
-      }));
-
-      // Total seeds must be ≤ 5
-      const trackIds  = seed_track_uris.slice(0,5).map(u => u.split(':').pop());
-      const validArtists = artistIds.filter(Boolean);
-
-      const params = new URLSearchParams({
-        limit: Math.min(limit, 100).toString(),
-        market: 'GB',
-      });
-      if (trackIds.length)    params.set('seed_tracks',   trackIds.join(','));
-      if (validArtists.length) params.set('seed_artists',  validArtists.join(','));
-      if (seed_genres.length)  params.set('seed_genres',   seed_genres.join(','));
-      if (target_energy  != null) params.set('target_energy',  target_energy.toString());
-      if (target_valence != null) params.set('target_valence', target_valence.toString());
-      if (target_tempo   != null) params.set('target_tempo',   target_tempo.toString());
-
-      const data = await spotify(`/recommendations?${params}`);
-      return {
-        tracks: data.tracks?.map(t => ({
-          name:     t.name,
-          artist:   t.artists?.map(a => a.name).join(', '),
-          album:    t.album?.name,
-          uri:      t.uri,
-          energy:   t.audio_features?.energy,
-          tempo:    t.audio_features?.tempo,
-          valence:  t.audio_features?.valence,
-        })) ?? [],
-        _tip: 'Pass track URIs to spotify_play with uris[] to play as a session, or spotify_create_playlist to save',
-      };
     },
   },
 

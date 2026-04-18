@@ -45,7 +45,7 @@ export const reminderTools = [
       required: ['title'],
       properties: {
         title:     { type: 'string', description: 'Reminder title' },
-        list_name: { type: 'string', description: 'List to add to (default: Reminders)' },
+        list_name: { type: 'string', description: 'List to add to (default: Inbox)' },
         due_date:  { type: 'string', description: 'ISO 8601 due date/time' },
         notes:     { type: 'string', description: 'Body/notes text' },
         priority:  { type: 'number', description: '0=none, 1=high, 5=medium, 9=low' },
