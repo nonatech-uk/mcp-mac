@@ -13,8 +13,7 @@
  *
  * PLEX:
  *   - Uses X-Plex-Token for auth (no OAuth needed).
- *   - plex_play targets a specific Plex player client by name; use
- *     plex_get_clients to list available player names.
+ *   - Read-only: library browsing, search, sessions, clients.
  */
 
 import config from '../config.js';
