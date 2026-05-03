@@ -14,20 +14,46 @@ try {
   process.exit(1);
 }
 
+// Two supported shapes:
+//   1. Multi-host (preferred):  { common, host_aliases, hosts: { <key>: {...} } }
+//   2. Single-host (legacy):    { hostname, priority, wireguard_ip, ... }
+const isMultiHost = raw.hosts && typeof raw.hosts === 'object';
+
+function resolveHostKey() {
+  const sys = os.hostname();
+  const candidates = [
+    process.env.MCP_HOST,
+    raw.host_aliases?.[sys],
+    raw.host_aliases?.[sys.replace(/\.local$/, '')],
+    sys,
+    sys.replace(/\.local$/, ''),
+  ].filter(Boolean);
+  for (const c of candidates) {
+    if (raw.hosts?.[c]) return c;
+  }
+  console.error(`No matching host block in config.hosts for ${sys}.`);
+  console.error(`Set MCP_HOST or add an entry to config.host_aliases.`);
+  process.exit(1);
+}
+
+const hostKey   = isMultiHost ? resolveHostKey() : (raw.hostname ?? os.hostname());
+const hostBlock = isMultiHost ? raw.hosts[hostKey] : raw;
+const common    = isMultiHost ? (raw.common ?? {}) : {};
+
 export const config = {
-  hostname:     raw.hostname     ?? os.hostname(),
-  priority:     raw.priority     ?? 5,
-  port:         raw.port         ?? 3456,
-  wireguard_ip: raw.wireguard_ip ?? '0.0.0.0',
-  api_key:      raw.api_key      ?? process.env.MCP_API_KEY ?? '',
+  hostname:     hostKey,
+  priority:     hostBlock.priority     ?? 5,
+  port:         hostBlock.port         ?? common.port ?? 3456,
+  wireguard_ip: hostBlock.wireguard_ip ?? '0.0.0.0',
+  api_key:      hostBlock.api_key      ?? common.api_key ?? process.env.MCP_API_KEY ?? '',
   tls: {
-    cert: raw.tls?.cert ?? process.env.SSL_CERTFILE ?? '',
-    key:  raw.tls?.key  ?? process.env.SSL_KEYFILE  ?? '',
+    cert: hostBlock.tls?.cert ?? common.tls?.cert ?? process.env.SSL_CERTFILE ?? '',
+    key:  hostBlock.tls?.key  ?? common.tls?.key  ?? process.env.SSL_KEYFILE  ?? '',
   },
-  shell:       raw.shell      ?? { enabled: false, allowlist: [] },
-  messages:    raw.messages   ?? { send_enabled: false },
-  spotify:     raw.spotify    ?? { enabled: false },
-  plex:        raw.plex       ?? { enabled: false },
+  shell:    hostBlock.shell    ?? common.shell    ?? { enabled: false, allowlist: [] },
+  messages: hostBlock.messages ?? common.messages ?? { send_enabled: false },
+  spotify:  hostBlock.spotify  ?? common.spotify  ?? { enabled: false },
+  plex:     hostBlock.plex     ?? common.plex     ?? { enabled: false },
 };
 
 export default config;

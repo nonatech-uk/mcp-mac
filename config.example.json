@@ -1,54 +1,69 @@
 {
-  "hostname": "mac-studio",
-  "priority": 10,
-  "port": 3456,
-  "wireguard_ip": "10.10.0.3",
+  "_comment": "Multi-host config. The local host is selected at startup by matching os.hostname() against host_aliases (or the MCP_HOST env var as override). Common fields are merged with the chosen host block; host fields win. The whole file can be safely sync'd between Macs (Syncthing-friendly).",
 
-  "_comment_priority": "Studio=10, Notebook=5. Gateway routes to highest reachable.",
-
-  "api_key": "YOUR_SHARED_SECRET",
-  "_comment_api_key": "Bearer token the gateway must present. Also settable via MCP_API_KEY env var.",
-
-  "tls": {
-    "cert": "/opt/mcp-mac/tls/mac-studio.crt",
-    "key":  "/opt/mcp-mac/tls/mac-studio.key",
-    "_comment": "Omit or leave empty to run plain HTTP. Generate with: scripts/gen-certs.sh"
+  "common": {
+    "port": 3456,
+    "shell": {
+      "enabled": true,
+      "allowlist": [
+        "df", "du", "ls", "find", "grep", "cat", "head", "tail",
+        "ps", "top", "vm_stat", "uptime", "sw_vers", "system_profiler",
+        "networksetup", "ifconfig", "ping", "traceroute",
+        "brew", "npm", "node", "python3",
+        "git", "gh",
+        "open", "say",
+        "ffmpeg", "ffprobe",
+        "rsync", "scp",
+        "pmset", "caffeinate"
+      ]
+    },
+    "messages": {
+      "send_enabled": false,
+      "_comment": "Set true to allow Claude to send iMessages."
+    },
+    "plex": {
+      "enabled": true,
+      "server_url": "http://YOUR_NAS_IP:32400",
+      "token": "YOUR_PLEX_TOKEN",
+      "default_client_name": "Mac Studio"
+    }
   },
 
-  "shell": {
-    "enabled": true,
-    "allowlist": [
-      "df", "du", "ls", "find", "grep", "cat", "head", "tail",
-      "ps", "top", "vm_stat", "uptime", "sw_vers", "system_profiler",
-      "networksetup", "ifconfig", "ping", "traceroute",
-      "brew", "npm", "node", "python3",
-      "git", "gh",
-      "open", "say",
-      "ffmpeg", "ffprobe",
-      "rsync", "scp",
-      "pmset", "caffeinate"
-    ]
+  "host_aliases": {
+    "_comment": "Map os.hostname() values to the logical keys under hosts.",
+    "Mees-Notebook.local": "mac-notebook",
+    "Mees-Notebook":       "mac-notebook",
+    "Mees-Studio.local":   "mac-studio",
+    "Mees-Studio":         "mac-studio"
   },
 
-  "messages": {
-    "send_enabled": false,
-    "_comment": "Set true to allow Claude to send iMessages. Confirm you want this before enabling."
-  },
+  "hosts": {
+    "mac-notebook": {
+      "_comment_priority": "Studio=10, Notebook=5. Gateway routes to the highest reachable.",
+      "priority": 5,
+      "wireguard_ip": "10.8.0.17",
+      "api_key": "YOUR_NOTEBOOK_API_KEY",
+      "tls": {
+        "cert": "/opt/mcp-mac/tls/mac-notebook.crt",
+        "key":  "/opt/mcp-mac/tls/mac-notebook.key"
+      },
+      "spotify": { "enabled": false }
+    },
 
-  "spotify": {
-    "enabled": true,
-    "client_id": "YOUR_SPOTIFY_CLIENT_ID",
-    "client_secret": "YOUR_SPOTIFY_CLIENT_SECRET",
-    "refresh_token": "YOUR_SPOTIFY_REFRESH_TOKEN",
-    "default_device_name": "Mac Studio",
-    "_comment": "Get tokens via: node scripts/spotify_auth.js"
-  },
-
-  "plex": {
-    "enabled": true,
-    "server_url": "http://YOUR_NAS_IP:32400",
-    "token": "YOUR_PLEX_TOKEN",
-    "default_client_name": "Mac Studio",
-    "_comment": "Token: sign in at plex.tv, inspect network, look for X-Plex-Token in any request"
+    "mac-studio": {
+      "priority": 10,
+      "wireguard_ip": "192.168.128.5",
+      "api_key": "YOUR_STUDIO_API_KEY",
+      "tls": {
+        "cert": "/opt/mcp-mac/tls/mac-studio.crt",
+        "key":  "/opt/mcp-mac/tls/mac-studio.key"
+      },
+      "spotify": {
+        "enabled": true,
+        "_comment": "Either token_proxy_url, or client_id/client_secret/refresh_token. Get tokens via: node scripts/spotify_auth.js",
+        "token_proxy_url": "http://YOUR_TOKEN_PROXY/token/user",
+        "default_device_name": "Mac Studio"
+      }
+    }
   }
 }
