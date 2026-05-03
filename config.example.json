@@ -34,7 +34,9 @@
     "Mees-Notebook.local": "mac-notebook",
     "Mees-Notebook":       "mac-notebook",
     "Mees-Studio.local":   "mac-studio",
-    "Mees-Studio":         "mac-studio"
+    "Mees-Studio":         "mac-studio",
+    "MeesMac-135.local":   "mac-studio",
+    "MeesMac-135":         "mac-studio"
   },
 
   "hosts": {
