@@ -33,7 +33,9 @@ import { browserTools }      from './tools/browser.js';
 
 // ─── Aggregate all tools ─────────────────────────────────────────────────────
 
-const HOST_PREFIX = config.hostname.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+// Constant prefix on every host — gateway routes by priority to whichever
+// host is reachable, so identical tool names across hosts are required.
+const TOOL_PREFIX = 'apple';
 
 const ALL_TOOLS = [
   ...reminderTools,
@@ -47,7 +49,7 @@ const ALL_TOOLS = [
   ...systemTools,
   ...musicTools,
   ...browserTools,
-].map(t => ({ ...t, name: `${HOST_PREFIX}_${t.name}` }));
+].map(t => ({ ...t, name: `${TOOL_PREFIX}_${t.name}` }));
 
 const TOOL_MAP = new Map(ALL_TOOLS.map(t => [t.name, t]));
 

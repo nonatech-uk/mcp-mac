@@ -83,6 +83,11 @@ Reminders / Contacts and add `/opt/homebrew/bin/node` (or wherever node is).
 
 ## Installed tools
 
+Every tool is exposed to the gateway with the constant prefix `apple_`, so
+both Macs advertise identical names (e.g. `apple_reminders_list_lists`,
+`apple_calendar_get_events`, `apple_spotify_play`). The gateway then picks
+the highest-priority reachable host — see *Gateway integration* below.
+
 | Module       | Tools |
 |--------------|-------|
 | Reminders    | list_lists, get, create, complete, delete |
@@ -192,7 +197,8 @@ upstreams:
 ```
 
 The gateway routes all Apple/Mac tool calls to the highest-priority reachable
-host. Both expose identical tool names; when only one is up it falls through
+host. Both Macs expose identical tool names (every tool is prefixed `apple_`,
+not by hostname), so when only one host is up the gateway falls through to it
 automatically.
 
 ## Troubleshooting
