@@ -46,13 +46,19 @@
   <key>StandardErrorPath</key>
   <string>/opt/mcp-mac/logs/mcp-mac-error.log</string>
 
-  <!-- Inherit user PATH so `open`, `pbcopy`, etc. resolve correctly -->
+  <!-- Inherit user PATH so `open`, `pbcopy`, etc. resolve correctly.
+       MCP_HOST pins this Mac's logical identity (mac-studio / mac-notebook)
+       independently of os.hostname(), which macOS occasionally rewrites.
+       deploy.sh substitutes __MCP_HOST__ with the value persisted in
+       /opt/mcp-mac/.host before installing this plist. -->
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     <key>HOME</key>
     <string>/Users/stu</string>
+    <key>MCP_HOST</key>
+    <string>__MCP_HOST__</string>
   </dict>
 
 </dict>
