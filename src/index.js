@@ -10,6 +10,7 @@
  */
 
 import https from 'node:https';
+import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import express from 'express';
 import { Server }           from '@modelcontextprotocol/sdk/server/index.js';
@@ -140,7 +141,21 @@ app.all('/mcp', async (req, res) => {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
-const LISTEN_ADDR = config.wireguard_ip || '127.0.0.1';
+const LISTEN_ADDR = config.bind || config.wireguard_ip || '127.0.0.1';
+
+// Security: binding to a non-loopback address exposes the MCP endpoint (shell
+// exec, messages, clipboard, …) on the network. The api_key Bearer check is the
+// only access control, and it is skipped entirely when api_key is empty. Refuse
+// to start in that combination rather than come up unauthenticated and reachable.
+const isLoopback = LISTEN_ADDR === '127.0.0.1' || LISTEN_ADDR === '::1';
+if (!isLoopback && !config.api_key) {
+  console.error(
+    `Refusing to start: bound to ${LISTEN_ADDR} (non-loopback) with no api_key. ` +
+    `Set api_key in config.json (or the MCP_API_KEY env var) to allow network ` +
+    `exposure, or set bind to "127.0.0.1" for loopback-only.`,
+  );
+  process.exit(1);
+}
 
 function onListening(protocol) {
   console.log(`mac-mcp [${config.hostname}] priority=${config.priority}`);
@@ -149,6 +164,50 @@ function onListening(protocol) {
   if (config.api_key) console.log('API key auth enabled');
   console.log('Health: GET /health');
   console.log('MCP:    /mcp');
+  selfCheck(protocol);
+}
+
+// Post-listen reachability self-check.
+//
+// The macOS Application Firewall silently resets inbound connections to a binary
+// it has blocked — e.g. a `brew upgrade node` lands /opt/homebrew/bin/node on a
+// new Cellar path that defaults to "block". When that happens the listener still
+// reports "Listening …" but is unreachable on the network: a silent outage that
+// looks healthy. Probe our own advertised address and, if the connection is
+// refused/reset, leave a loud, greppable marker in the log instead of nothing.
+function selfCheck(protocol) {
+  const target = config.wireguard_ip;
+  // Skip when nothing non-loopback is advertised: loopback isn't firewall-gated,
+  // and 0.0.0.0 is a bind wildcard, not a connectable destination.
+  if (!target || target === '0.0.0.0' || target === '127.0.0.1' || target === '::1') return;
+
+  // Connection-level failures mean the firewall/network dropped us before the
+  // server could respond. Anything else (e.g. a TLS identity error from the
+  // internal self-signed CA, or IP-vs-CN mismatch) means we DID reach the
+  // listener — which is all this check cares about — so it is not an outage.
+  const UNREACHABLE = new Set([
+    'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EHOSTUNREACH', 'ENETUNREACH', 'EHOSTDOWN',
+  ]);
+  const ok = (detail) =>
+    console.log(`Self-check OK: reachable at ${protocol}://${target}:${config.port} (${detail})`);
+
+  const client = protocol === 'https' ? https : http;
+  const req = client.request(
+    { host: target, port: config.port, path: '/health', method: 'GET', timeout: 5000 },
+    (res) => { res.resume(); ok(`HTTP ${res.statusCode}`); },
+  );
+  req.on('timeout', () => req.destroy(Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' })));
+  req.on('error', (err) => {
+    if (!UNREACHABLE.has(err.code)) { ok(`TLS reached: ${err.code || err.message}`); return; }
+    const fw = '/usr/libexec/ApplicationFirewall/socketfilterfw';
+    console.error('!!!!!!!!!!!!!!!!!!!! SELF-CHECK FAILED !!!!!!!!!!!!!!!!!!!!');
+    console.error(`!!! ${protocol}://${target}:${config.port} is UNREACHABLE (${err.code || err.message})`);
+    console.error('!!! The listener is up but inbound connections are being dropped —');
+    console.error('!!! most likely the macOS Application Firewall is blocking this node binary.');
+    console.error(`!!! Fix: sudo ${fw} --unblockapp ${process.execPath}`);
+    console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+  });
+  req.end();
 }
 
 if (config.tls.cert && config.tls.key) {

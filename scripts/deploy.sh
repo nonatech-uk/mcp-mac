@@ -46,6 +46,22 @@ cd "$DEST" && npm install --production --silent
 echo "==> Installing launchd plist (MCP_HOST=${HOST_KEY})..."
 sed "s/__MCP_HOST__/${HOST_KEY}/" "$DEST/launchd/${PLIST_LABEL}.plist" > "$PLIST"
 
+# A `brew upgrade node` repoints /opt/homebrew/bin/node at a new Cellar path that
+# the macOS Application Firewall defaults to *blocking* — which silently resets
+# inbound connections and takes the server offline (the listener still reports
+# "Listening …"). Re-allow the binary we're about to run so an upgrade can't
+# quietly break reachability. realpathSync resolves the symlink to the exact
+# Cellar path the firewall keys on.
+echo "==> Allowing node through the application firewall (may prompt for sudo)..."
+FW=/usr/libexec/ApplicationFirewall/socketfilterfw
+NODE_BIN="$(/opt/homebrew/bin/node -p 'require("fs").realpathSync(process.execPath)')"
+if sudo "$FW" --add "$NODE_BIN" >/dev/null && sudo "$FW" --unblockapp "$NODE_BIN" >/dev/null; then
+  echo "    allowed: $NODE_BIN"
+else
+  echo "    WARNING: could not update firewall. Run manually, then restart the service:"
+  echo "      sudo $FW --unblockapp \"$NODE_BIN\""
+fi
+
 echo "==> Starting service..."
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 
