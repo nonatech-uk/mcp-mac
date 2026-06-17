@@ -52,14 +52,18 @@ sed "s/__MCP_HOST__/${HOST_KEY}/" "$DEST/launchd/${PLIST_LABEL}.plist" > "$PLIST
 # "Listening …"). Re-allow the binary we're about to run so an upgrade can't
 # quietly break reachability. realpathSync resolves the symlink to the exact
 # Cellar path the firewall keys on.
-echo "==> Allowing node through the application firewall (may prompt for sudo)..."
+echo "==> Allowing node through the application firewall..."
 FW=/usr/libexec/ApplicationFirewall/socketfilterfw
 NODE_BIN="$(/opt/homebrew/bin/node -p 'require("fs").realpathSync(process.execPath)')"
-if sudo "$FW" --add "$NODE_BIN" >/dev/null && sudo "$FW" --unblockapp "$NODE_BIN" >/dev/null; then
+# Non-interactive: relies on the NOPASSWD sudoers rule in
+# /etc/sudoers.d/mac-mcp-firewall. If that rule is absent, fail fast with the
+# manual command rather than hanging on a password prompt mid-deploy.
+if sudo -n "$FW" --add "$NODE_BIN" >/dev/null 2>&1 && sudo -n "$FW" --unblockapp "$NODE_BIN" >/dev/null 2>&1; then
   echo "    allowed: $NODE_BIN"
 else
-  echo "    WARNING: could not update firewall. Run manually, then restart the service:"
+  echo "    WARNING: could not update firewall non-interactively. Run manually:"
   echo "      sudo $FW --unblockapp \"$NODE_BIN\""
+  echo "    (or install the NOPASSWD rule at /etc/sudoers.d/mac-mcp-firewall)"
 fi
 
 echo "==> Starting service..."
